@@ -11,11 +11,11 @@ import matplotlib.pyplot as plt
 
 
 # Parameters
-fp_overview = 'J:\\Jonas Hemesath\\Synchrotron_time_calculations\\220112\\bw_images'        # images have to be binary
+fp_overview = 'D:\\ESRF\\ZF13\\bw'        # images have to be binary
 overview_pos = (0, 0, 0)            # x, y, z in micrometer
 overview_voxel_size = 24.41         # in micrometer
 
-fp_output = 'C:\\Users\\hemesath\\python_experiments\\CT_positions\\'
+fp_output = 'C:\\Users\\jonas\\python_experiments\\CT_positions\\'
 
 detector_px_x = 2560
 detector_px_y = 2560
@@ -40,6 +40,77 @@ origin_offset = 5                   # mm from the lower left corner of the overv
 show_snippets = True
 
 
+def get_columns(pos, tile_z_um):
+    xy = []
+    for p in pos:
+        if [p[0], p[1]] not in xy:
+            xy.append([p[0], p[1]])
+    z = list(set([p[2] for p in pos]))
+    z_max = np.max(z)
+    z_min = np.min(z)
+    n_z = round((z_max - z_min)/(tile_z_um * 0.001)) + 1
+    blender_positions = []
+    for p in xy:
+        for i in range(n_z):
+            blender_positions.append([p[0], p[1], z_max - i * tile_z_um * 0.001])
+    with open('column_positions.txt', 'w') as f:
+        line = 'z_max = ' + str(z_max) + ', number of tomograms in one column = ' + str(n_z) + '\n\n'
+        f.write(line)
+        for p in xy:
+            line = 'uvm(sx, ' + str(p[0]) + ', sy, ' + str(p[1]) + ')\n'
+            f.write(line)
+
+    return blender_positions
+
+
+def get_grid(pos , tile_z_um, tomogram_overlap):
+
+    xs = list(set([p[0] for p in pos]))
+    ys = list(set([p[1] for p in pos]))
+    ys1 = [ys[i] for i in range(0, len(ys), 2)]
+    ys2 = [ys[i] for i in range(1, len(ys), 2)]
+    ys.sort()
+
+    zs = list(set([p[2] for p in pos]))
+
+    xy = []
+
+    if tomogram_overlap == 'linear':
+        for x in xs:
+            for y in ys:
+                xy.append([x, y])
+
+    elif tomogram_overlap == 'offset':
+        for i, x in enumerate(xs):
+            if i%2 == 0:
+                for y in ys1:
+                     xy.append([x, y])
+            else:
+                for y in ys2:
+                     xy.append([x, y])
+
+
+    z_min = np.min(zs)
+    z_max = np.max(zs)
+
+    n_z = round((z_max - z_min)/(tile_z_um * 0.001)) + 1
+
+    blender_positions = []
+    for p in xy:
+        for i in range(n_z):
+            blender_positions.append([p[0], p[1], z_max - i * tile_z_um * 0.001])
+    with open('grid_positions.txt', 'w') as f:
+        line = 'z_max = ' + str(z_max) + ', number of tomograms in one column = ' + str(n_z) + '\n\n'
+        f.write(line)
+        for p in xy:
+            line = 'uvm(sx, ' + str(p[0]) + ', sy, ' + str(p[1]) + ')\n'
+            f.write(line)
+
+    return blender_positions
+
+    
+
+
 def calculate_postions(fp_overview, overview_pos, overview_voxel_size, fp_output, detector_px_x, detector_px_y, half_aquisition, half_acquistion_overlap,
                        hres_voxel_size, time_per_tomogram, overlap_between_tomograms, overlap_column, tomogram_overlap, origin_offset, show_snippets):
     
@@ -50,6 +121,8 @@ def calculate_postions(fp_overview, overview_pos, overview_voxel_size, fp_output
     overview = np.rot90(overview, 1, (0,1))
     overview = np.rot90(overview, 1, (1,2))
     overview = np.rot90(overview, 2, (0,1))
+
+    overview[:,:,735:-1] = 0    #TODO: Has to be removed
 
     if show_snippets:
         snippets = [overview.shape[2]//4, overview.shape[2]//2, (3*overview.shape[2])//4]
@@ -171,21 +244,34 @@ def calculate_postions(fp_overview, overview_pos, overview_voxel_size, fp_output
 
     norm_positions = [[p[i] - origin[i] for i in range(3)] for p in positions]
 
-    # Exports
 
-    print('Number of tomograms:', len(positions))
-    print('Total scan time [hrs]:', len(positions)*time_per_tomogram/60)
+    # Exports
+    
 
     with open(fp_output + 'postions.txt', 'w') as f:
         for p in positions:
-            line = 'uvm(sx, ' + str(p[0]-origin[0]) + ', sy, ' + str(p[1]-origin[1]) + ', sz, ' + str(p[2]-origin[2]) + ')\n'
+            line = 'uvm(sx, ' + str(p[0]) + ', sy, ' + str(p[1]) + ', sz, ' + str(p[2]) + ')\n'
             f.write(line)
 
+    column_positions = get_columns(positions, tile_size_z_um)
+    grid_positions = get_grid(positions, tile_size_z_um, tomogram_overlap)
 
-    blender_data = {'origin': origin, 'mesh_origin': mesh_origin, 'positions': norm_positions, 'tilesize': (tile_size_xy_um*0.001, tile_size_z_um*0.001)}
+    blender_data = {'origin': origin, 'mesh_origin': lower_left, 'positions': positions, 'tilesize': (tile_size_xy_um*0.001, tile_size_z_um*0.001), 'column_positions': column_positions, 'grid_positions': grid_positions}
 
     with open('blender_data.json', 'w') as f:
         json.dump(blender_data, f)
+
+    print('Optimal fit:')
+    print('Number of tomograms:', len(positions))
+    print('Total scan time [hrs]:', len(positions)*time_per_tomogram/60)
+    print('\n')
+    print('Columns:')
+    print('Number of tomograms:', len(column_positions))
+    print('Total scan time [hrs]:', len(column_positions)*time_per_tomogram/60)
+    print('\n')
+    print('Grid:')
+    print('Number of tomograms:', len(grid_positions))
+    print('Total scan time [hrs]:', len(grid_positions)*time_per_tomogram/60)
 
                     
     return positions
