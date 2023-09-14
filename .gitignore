@@ -1,3 +1,5 @@
 *.stl
 *.txt
 *.json
+list_dir.py
+*.blend

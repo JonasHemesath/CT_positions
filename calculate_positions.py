@@ -38,7 +38,7 @@ downsample = 2
 
 origin_offset = 5                   # mm from the lower left corner of the overview
 
-show_snippets = False
+show_snippets = True
 
 invert = True                       # Invert the bw image
 
@@ -48,10 +48,12 @@ def get_columns(pos, tile_z_um, overlap_z, hres_voxel_size):
 
     Args:
         pos (list): List of tomogram positions that fit the object in all dimensions
-        tile_z_um (float): Size of one tile in 
+        tile_z_um (float): Size in z of one tile in micrometer
+        overlap_z (int): Number of voxels overlap in z-direction
+        hres_voxel_size (float): voxel size of the high resolution scan
 
     Returns:
-        _type_: _description_
+        list: list of [x, y, z] positions
     """
 
     overlap_z_um = overlap_z * hres_voxel_size
@@ -78,7 +80,18 @@ def get_columns(pos, tile_z_um, overlap_z, hres_voxel_size):
 
 
 def get_grid(pos , tile_z_um, tomogram_overlap, overlap_z, hres_voxel_size):
+    """Generate a grid of tomograms fit to the xy plane of the object
 
+    Args:
+        pos (list): List of tomogram positions that fit the object in all dimensions
+        tile_z_um (float): Size in z of one tile in micrometer
+        tomogram_overlap (str): Type of overlap (either 'linear' or 'grid')
+        overlap_z (int): Number of voxels overlap in z-direction
+        hres_voxel_size (float): voxel size of the high resolution scan
+
+    Returns:
+        list: list of [x, y, z] positions
+    """
     overlap_z_um = overlap_z * hres_voxel_size
     xs = list(set([p[0] for p in pos]))
     ys = list(set([p[1] for p in pos]))
@@ -128,7 +141,30 @@ def get_grid(pos , tile_z_um, tomogram_overlap, overlap_z, hres_voxel_size):
 
 def calculate_postions(fp_overview, overview_pos, overview_voxel_size, fp_output, detector_px_x, detector_px_y, half_aquisition, half_acquistion_overlap,
                        hres_voxel_size, time_per_tomogram, overlap_between_tomograms, overlap_column, tomogram_overlap, origin_offset, show_snippets, invert):
-    
+    """_summary_
+
+    Args:
+        fp_overview (str): filepath to an overview scan of the object
+        overview_pos (_type_): _description_
+        overview_voxel_size (_type_): _description_
+        fp_output (_type_): _description_
+        detector_px_x (_type_): _description_
+        detector_px_y (_type_): _description_
+        half_aquisition (_type_): _description_
+        half_acquistion_overlap (_type_): _description_
+        hres_voxel_size (_type_): _description_
+        time_per_tomogram (_type_): _description_
+        overlap_between_tomograms (_type_): _description_
+        overlap_column (_type_): _description_
+        tomogram_overlap (_type_): _description_
+        origin_offset (_type_): _description_
+        show_snippets (_type_): _description_
+        invert (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+
     # Overview
     overview_paths = list(Path(fp_overview).iterdir())
     overview = tifffile.TiffSequence(overview_paths).asarray()
@@ -136,6 +172,7 @@ def calculate_postions(fp_overview, overview_pos, overview_voxel_size, fp_output
     overview = np.rot90(overview, 1, (0,1))
     overview = np.rot90(overview, 1, (1,2))
     overview = np.rot90(overview, 2, (0,1))
+    overview = np.fliplr(overview)
 
     if invert:
         overview_new = copy.deepcopy(overview)
@@ -299,6 +336,7 @@ def output_brain_mesh(fp_overview, fp_output, overview_voxel_size, downsample=No
     overview = np.rot90(overview, 1, (0,1))
     overview = np.rot90(overview, 1, (1,2))
     overview = np.rot90(overview, 1, (0,1))
+    overview = np.fliplr(overview)
     #overview = np.flip(overview, 2)
     print('Overview loaded')
     vx = overview_voxel_size * 0.001
