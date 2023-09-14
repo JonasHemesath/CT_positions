@@ -1,5 +1,6 @@
 import bpy
 import json
+import os
 
 path = 'C:\\Users\\jonas\\python_experiments\\CT_positions\\'
 
@@ -13,6 +14,11 @@ positions = data['column_positions']
 bpy.ops.import_mesh.stl(filepath=path + "overview.stl")
 brain = bpy.context.selected_objects[0]
 brain.location = (data['mesh_origin'][1], data['mesh_origin'][0], data['mesh_origin'][2])
+
+if os.path.isfile(path + 'resin_overview.stl'):
+    bpy.ops.import_mesh.stl(filepath=path + 'resin_overview.stl')
+    resin = bpy.context.selected_objects[0]
+    resin.location = (data['mesh_origin'][1], data['mesh_origin'][0], data['mesh_origin'][2])
 
 for p in positions:
 

@@ -9,10 +9,12 @@ from skimage import measure
 import json
 import matplotlib.pyplot as plt
 import copy
+from scipy.ndimage import convolve
 
 
 # Parameters
 fp_overview = 'D:\\ESRF\\ZF13\\zf13_bin'        # images have to be binary
+fp_resin_overview = None
 overview_pos = (-0.575*1000, -1.3*1000, -95*1000)            # x, y, z in micrometer
 overview_voxel_size = 4*6        # in micrometer
 
@@ -34,6 +36,7 @@ overlap_column = 100                # tile voxel
 tomogram_overlap = 'offset'         # equals to either 'linear' or 'offset'
 
 export_brain_mesh = True
+export_resin_mesh = False
 downsample = 2
 
 origin_offset = 5                   # mm from the lower left corner of the overview
@@ -173,6 +176,7 @@ def calculate_postions(fp_overview, overview_pos, overview_voxel_size, fp_output
     overview = np.rot90(overview, 1, (1,2))
     overview = np.rot90(overview, 2, (0,1))
     overview = np.fliplr(overview)
+
 
     if invert:
         overview_new = copy.deepcopy(overview)
@@ -329,13 +333,35 @@ def calculate_postions(fp_overview, overview_pos, overview_voxel_size, fp_output
     return positions
 
 
+def output_resin_mesh(fp_resin_overview, fp_output, overview_voxel_size, downsample=None):
+    overview_paths = list(Path(fp_resin_overview).iterdir())
+    overview = tifffile.TiffSequence(overview_paths).asarray()
+
+    overview = np.rot90(overview, 1, (0,1))
+    overview = np.rot90(overview, 1, (1,2))
+    overview = np.rot90(overview, 3, (0,1))
+    overview = np.fliplr(overview)
+    #overview = np.flip(overview, 2)
+    print('Overview loaded')
+    vx = overview_voxel_size * 0.001
+    if downsample:
+        overview = measure.block_reduce(overview, downsample)
+        vx = vx * downsample
+        print('Image downsampled by factor of', downsample)
+
+    verts, faces, normals, values = measure.marching_cubes(overview, 0, spacing=(vx, vx, vx))
+    print('Marching cubes finished')
+    surf_mesh = trimesh.Trimesh(verts, faces, validate=True)
+    print('Mesh calculated')
+    surf_mesh.export(fp_output + 'resin_overview.stl')
+
 def output_brain_mesh(fp_overview, fp_output, overview_voxel_size, downsample=None):
     overview_paths = list(Path(fp_overview).iterdir())
     overview = tifffile.TiffSequence(overview_paths).asarray()
 
     overview = np.rot90(overview, 1, (0,1))
     overview = np.rot90(overview, 1, (1,2))
-    overview = np.rot90(overview, 1, (0,1))
+    overview = np.rot90(overview, 3, (0,1))
     overview = np.fliplr(overview)
     #overview = np.flip(overview, 2)
     print('Overview loaded')
@@ -359,6 +385,10 @@ if __name__ == '__main__':
     
     if export_brain_mesh:
         output_brain_mesh(fp_overview, fp_output, overview_voxel_size, downsample)
+
+    if export_resin_mesh:
+        output_resin_mesh(fp_resin_overview, fp_output, overview_voxel_size, downsample)
+
     
     
 
